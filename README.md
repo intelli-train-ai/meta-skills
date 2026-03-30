@@ -44,6 +44,40 @@ Meta Skills 是一套围绕 Claude Code Skill 生态系统构建的工具集，�
 | session-distiller | [GitHub](https://github.com/OrionZou/skill-session-distiller) | 分析对话内容，自动提取可复用的技能模式 |
 | skill-analyzer | [GitHub](https://github.com/OrionZou/skill-analyzer) | 递归分析 skill 的完整依赖关系并生成交互式可视化图表 |
 
+## 安装
+
+本仓库是一个 Claude Code Plugin，包含全部 7 个 meta-skill。
+
+### 从 Marketplace 安装
+
+```
+/plugin install meta-skills
+```
+
+### 手动安装
+
+```bash
+git clone --recurse-submodules https://github.com/intelli-train-ai/meta-skills.git
+```
+
+然后通过 `--plugin-dir` 加载：
+
+```bash
+claude --plugin-dir ./meta-skills
+```
+
+### 安装后可用的 Skill 命令
+
+| 命令 | 说明 |
+|------|------|
+| `/meta-skills:skill-skillsh-finder` | 从 skills.sh 搜索 skill |
+| `/meta-skills:skill-find-skills-clawhub` | 从 ClawHub 平台查找 skill |
+| `/meta-skills:skill-recommender` | 根据上下文智能推荐 skill |
+| `/meta-skills:skill-master` | 创建与改进 skill |
+| `/meta-skills:skill-plan-visualizer` | 可视化计划和工作流 |
+| `/meta-skills:skill-session-distiller` | 从对话中提取可复用技能模式 |
+| `/meta-skills:skill-analyzer` | 分析 skill 依赖关系 |
+
 ## 相关资源
 
 | 资源 | 链接 | 说明 |

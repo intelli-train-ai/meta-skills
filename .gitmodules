@@ -1,0 +1,21 @@
+[submodule "skills/skill-skillsh-finder"]
+	path = skills/skill-skillsh-finder
+	url = https://github.com/OrionZou/skill-skillsh-finder.git
+[submodule "skills/skill-find-skills-clawhub"]
+	path = skills/skill-find-skills-clawhub
+	url = https://github.com/OrionZou/skill-find-skills-clawhub.git
+[submodule "skills/skill-recommender"]
+	path = skills/skill-recommender
+	url = https://github.com/OrionZou/skill-recommender.git
+[submodule "skills/skill-master"]
+	path = skills/skill-master
+	url = https://github.com/OrionZou/skill-master.git
+[submodule "skills/skill-plan-visualizer"]
+	path = skills/skill-plan-visualizer
+	url = https://github.com/OrionZou/skill-plan-visualizer.git
+[submodule "skills/skill-session-distiller"]
+	path = skills/skill-session-distiller
+	url = https://github.com/OrionZou/skill-session-distiller.git
+[submodule "skills/skill-analyzer"]
+	path = skills/skill-analyzer
+	url = https://github.com/OrionZou/skill-analyzer.git

@@ -1,0 +1,11 @@
+{
+  "name": "meta-skills",
+  "description": "Meta Skills — 用于管理、发现、创建和分析 Claude Code Skills 的元技能插件包",
+  "version": "1.0.0",
+  "author": {
+    "name": "OrionZou"
+  },
+  "repository": "https://github.com/intelli-train-ai/meta-skills",
+  "license": "MIT",
+  "keywords": ["skills", "meta", "search", "recommend", "create", "analyze"]
+}
