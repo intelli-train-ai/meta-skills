@@ -10,8 +10,8 @@
 
 | Skill | 链接 | 说明 |
 |-------|------|------|
-| skill-skillsh-finder | [GitHub](https://github.com/OrionZou/skill-skillsh-finder) | 基于 Shell 脚本的 skill 搜索工具 |
-| skill-find-skills-clawhub | [GitHub](https://github.com/OrionZou/skill-find-skills-clawhub) | 从 ClawHub 平台查找 skill |
+| skill-skillsh-finder | [GitHub](https://github.com/intelli-train-ai/skill-skillsh-finder) | 基于 Shell 脚本的 skill 搜索工具 |
+| skill-find-skills-clawhub | [GitHub](https://github.com/intelli-train-ai/skill-find-skills-clawhub) | 从 ClawHub 平台查找 skill |
 
 ---
 
@@ -21,7 +21,7 @@
 
 | Skill | 链接 | 说明 |
 |-------|------|------|
-| skill-recommender | [GitHub](https://github.com/OrionZou/skill-recommender) | 根据用户上下文智能推荐 skill |
+| skill-recommender | [GitHub](https://github.com/intelli-train-ai/skill-recommender) | 根据用户上下文智能推荐 skill |
 
 ---
 
@@ -31,7 +31,7 @@
 
 | Skill | 链接 | 说明 |
 |-------|------|------|
-| skill-master | [GitHub](https://github.com/OrionZou/skill-master) | Skill 创建与改进工具 |
+| skill-master | [GitHub](https://github.com/intelli-train-ai/skill-master) | Skill 创建与改进工具 |
 
 ---
 
@@ -41,9 +41,9 @@
 
 | Skill | 链接 | 说明 |
 |-------|------|------|
-| plan-visualizer | [GitHub](https://github.com/OrionZou/skill-plan-visualizer) | 将计划、任务列表和工作流可视化为交互式 HTML 页面 |
-| session-distiller | [GitHub](https://github.com/OrionZou/skill-session-distiller) | 分析对话内容，自动提取可复用的技能模式 |
-| skill-analyzer | [GitHub](https://github.com/OrionZou/skill-analyzer) | 递归分析 skill 的完整依赖关系并生成交互式可视化图表 |
+| plan-visualizer | [GitHub](https://github.com/intelli-train-ai/skill-plan-visualizer) | 将计划、任务列表和工作流可视化为交互式 HTML 页面 |
+| session-distiller | [GitHub](https://github.com/intelli-train-ai/skill-session-distiller) | 分析对话内容，自动提取可复用的技能模式 |
+| skill-analyzer | [GitHub](https://github.com/intelli-train-ai/skill-analyzer) | 递归分析 skill 的完整依赖关系并生成交互式可视化图表 |
 
 ---
 
@@ -51,4 +51,4 @@
 
 | 资源 | 链接 | 说明 |
 |------|------|------|
-| skill-template | [GitHub](https://github.com/OrionZou/skill-template) | Skill 模板，帮助用户快速编写新 skill |
+| skill-template | [GitHub](https://github.com/intelli-train-ai/skill-template) | Skill 模板，帮助用户快速编写新 skill |
