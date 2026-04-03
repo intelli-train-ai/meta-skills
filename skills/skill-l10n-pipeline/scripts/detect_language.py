@@ -100,8 +100,8 @@ def detect_language(file_path: str) -> dict:
 
     # 判定语言
     # 技术 skill 即使是中文版也含大量英文（API 名、代码引用等），
-    # 所以阈值设为 0.15 而非通常的 0.3
-    if chinese_ratio > 0.15:
+    # 所以阈值设为 0.25 而非通常的 0.3
+    if chinese_ratio > 0.25:
         language = "zh"
         confidence = min(chinese_ratio * 2, 1.0)
         is_chinese = True

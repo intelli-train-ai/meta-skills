@@ -3,7 +3,7 @@
 """
 三层评测报告 HTML 生成脚本
 
-用法: python generate_report.py /path/to/workspace/iteration-N/ --output report.html --skill-name "xxx"
+用法: python generate_report.py /path/to/workspace/ --output report.html --skill-name "xxx"
 """
 
 import argparse
@@ -12,82 +12,28 @@ import os
 import sys
 from datetime import date
 
-
-def read_json(path: str) -> dict | None:
-    """安全读取 JSON 文件"""
-    if not os.path.exists(path):
-        return None
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        print(f"警告: 读取 {path} 失败 - {e}", file=sys.stderr)
-        return None
-
-
-def extract_pass_rate(grading_data: dict) -> float | None:
-    """从 grading.json 提取 pass_rate，兼容多种格式"""
-    if not grading_data:
-        return None
-
-    if "summary" in grading_data:
-        summary = grading_data["summary"]
-        if "pass_rate" in summary:
-            return float(summary["pass_rate"])
-        if "passed" in summary and "total" in summary:
-            total = summary["total"]
-            return summary["passed"] / total if total > 0 else 0.0
-
-    if "total_requirements" in grading_data and "passed" in grading_data:
-        total = grading_data["total_requirements"]
-        return grading_data["passed"] / total if total > 0 else 0.0
-
-    if "total_score" in grading_data and "max_score" in grading_data:
-        max_score = grading_data["max_score"]
-        return grading_data["total_score"] / max_score if max_score > 0 else 0.0
-
-    for key in ("expectations", "results", "details"):
-        if key in grading_data and isinstance(grading_data[key], list):
-            items = grading_data[key]
-            if not items:
-                return 0.0
-            passed = sum(1 for item in items if isinstance(item, dict) and (
-                item.get("passed") or item.get("pass") or item.get("result") == "pass"
-                or item.get("status") == "passed" or item.get("met")
-            ))
-            return passed / len(items)
-
-    return None
+from utils import read_json, discover_eval_ids, extract_pass_rate, extract_comparison_scores
 
 
 def extract_grading_items(grading_data: dict) -> list[dict]:
-    """从 grading.json 提取逐条断言结果"""
+    """从 grading_eval_*.json 提取逐条断言结果（仅规范格式）"""
     if not grading_data:
         return []
 
-    for key in ("expectations", "results", "details"):
-        if key in grading_data and isinstance(grading_data[key], list):
-            items = []
-            for item in grading_data[key]:
-                if not isinstance(item, dict):
-                    continue
-                # 判定是否通过
-                passed = bool(
-                    item.get("passed") or item.get("pass") or item.get("result") == "pass"
-                    or item.get("status") == "passed" or item.get("met")
-                )
-                # 提取描述
-                desc = (item.get("description") or item.get("requirement") or
-                        item.get("name") or item.get("expectation") or str(item))
-                # 提取证据
-                evidence = item.get("evidence") or item.get("detail") or item.get("reason") or ""
-                items.append({
-                    "description": desc,
-                    "passed": passed,
-                    "evidence": evidence,
-                })
-            return items
-    return []
+    expectations = grading_data.get("expectations", [])
+    if not isinstance(expectations, list):
+        return []
+
+    items = []
+    for item in expectations:
+        if not isinstance(item, dict):
+            continue
+        items.append({
+            "description": item.get("text", str(item)),
+            "passed": bool(item.get("passed")),
+            "evidence": item.get("evidence", ""),
+        })
+    return items
 
 
 def extract_passed_total(grading_data: dict) -> tuple[int, int]:
@@ -104,234 +50,143 @@ def extract_passed_total(grading_data: dict) -> tuple[int, int]:
         s = grading_data["summary"]
         if "passed" in s and "total" in s:
             return int(s["passed"]), int(s["total"])
-    if "total_requirements" in grading_data and "passed" in grading_data:
-        return int(grading_data["passed"]), int(grading_data["total_requirements"])
 
     return 0, 0
 
 
-def extract_comparison_scores(comparison_data: dict, eval_dir: str) -> tuple[float | None, float | None]:
-    """从 comparison.json 提取 CN 和 EN 的总分"""
-    if not comparison_data:
-        return None, None
-
-    # 直接有 cn_score/en_score
-    if "cn_score" in comparison_data:
-        return float(comparison_data["cn_score"]), float(comparison_data.get("en_score", 0))
-    if "cn_total" in comparison_data:
-        return float(comparison_data["cn_total"]), float(comparison_data.get("en_total", 0))
-
-    # 确定 A/B 映射
-    ab_map = {}
-    ab_path = os.path.join(eval_dir, "ab_assignments.json")
-    ab_data = read_json(ab_path)
-    if ab_data:
-        for key, val in ab_data.items():
-            label = key.upper()
-            if label in ("A", "B"):
-                val_lower = str(val).lower()
-                if "cn" in val_lower or "chinese" in val_lower:
-                    ab_map[label] = "cn"
-                elif "en" in val_lower or "english" in val_lower:
-                    ab_map[label] = "en"
-
-    if not ab_map:
-        for mkey in ("ab_mapping", "assignments", "mapping"):
-            if mkey in comparison_data and isinstance(comparison_data[mkey], dict):
-                for label, val in comparison_data[mkey].items():
-                    label_upper = label.upper()
-                    if label_upper in ("A", "B"):
-                        val_lower = str(val).lower()
-                        if "cn" in val_lower or "chinese" in val_lower:
-                            ab_map[label_upper] = "cn"
-                        elif "en" in val_lower or "english" in val_lower:
-                            ab_map[label_upper] = "en"
-                break
-
-    # 提取 A/B 分数
-    a_score, b_score = None, None
-
-    for score_key in ("total_score", "overall_score", "score", "total"):
-        for prefix in ("a_", "b_", "A_", "B_"):
-            full_key = prefix + score_key
-            if full_key in comparison_data:
-                if prefix[0].upper() == "A":
-                    a_score = float(comparison_data[full_key])
-                else:
-                    b_score = float(comparison_data[full_key])
-
-    for container_key in ("scores", "results", "evaluation"):
-        if container_key in comparison_data and isinstance(comparison_data[container_key], dict):
-            container = comparison_data[container_key]
-            for label in ("A", "a", "B", "b"):
-                if label in container:
-                    val = container[label]
-                    score = None
-                    if isinstance(val, (int, float)):
-                        score = float(val)
-                    elif isinstance(val, dict):
-                        for sk in ("total_score", "overall_score", "score", "total"):
-                            if sk in val:
-                                score = float(val[sk])
-                                break
-                        if score is None and "dimensions" in val:
-                            dims = val["dimensions"]
-                            if isinstance(dims, dict):
-                                score = sum(float(v) for v in dims.values() if isinstance(v, (int, float)))
-                            elif isinstance(dims, list):
-                                score = sum(float(d.get("score", 0)) for d in dims if isinstance(d, dict))
-                    if score is not None:
-                        if label.upper() == "A":
-                            a_score = score
-                        else:
-                            b_score = score
-
-    if a_score is None and b_score is None:
-        if "dimensions" in comparison_data and isinstance(comparison_data["dimensions"], list):
-            a_total, b_total, count = 0.0, 0.0, 0
-            for dim in comparison_data["dimensions"]:
-                if isinstance(dim, dict):
-                    a_val = dim.get("a_score") or dim.get("A_score") or dim.get("score_a")
-                    b_val = dim.get("b_score") or dim.get("B_score") or dim.get("score_b")
-                    if a_val is not None and b_val is not None:
-                        a_total += float(a_val)
-                        b_total += float(b_val)
-                        count += 1
-            if count > 0:
-                a_score, b_score = a_total, b_total
-
-    if ab_map and a_score is not None and b_score is not None:
-        cn_score = a_score if ab_map.get("A") == "cn" else b_score
-        en_score = a_score if ab_map.get("A") == "en" else b_score
-        return cn_score, en_score
-
-    if a_score is not None and b_score is not None:
-        return a_score, b_score
-
-    return None, None
-
-
 def extract_comparison_dimensions(comparison_data: dict) -> list[dict]:
-    """提取盲评维度详情"""
+    """从 comparison_eval_*.json 提取 rubric 维度详情（规范格式）"""
     if not comparison_data:
         return []
 
-    dims = comparison_data.get("dimensions", [])
-    if isinstance(dims, list):
-        result = []
-        for dim in dims:
-            if isinstance(dim, dict):
-                name = dim.get("name") or dim.get("dimension") or "未知维度"
-                a_score = dim.get("a_score") or dim.get("A_score") or dim.get("score_a")
-                b_score = dim.get("b_score") or dim.get("B_score") or dim.get("score_b")
-                result.append({
-                    "name": name,
-                    "a_score": float(a_score) if a_score is not None else None,
-                    "b_score": float(b_score) if b_score is not None else None,
-                })
-        return result
-    return []
+    rubric = comparison_data.get("rubric", {})
+    if not isinstance(rubric, dict):
+        return []
+
+    a_rubric = rubric.get("A", {})
+    b_rubric = rubric.get("B", {})
+    if not isinstance(a_rubric, dict) or not isinstance(b_rubric, dict):
+        return []
+
+    result = []
+    for group_key in ("content", "structure"):
+        a_group = a_rubric.get(group_key, {})
+        b_group = b_rubric.get(group_key, {})
+        if isinstance(a_group, dict) and isinstance(b_group, dict):
+            for dim_key in a_group:
+                a_val = a_group.get(dim_key)
+                b_val = b_group.get(dim_key)
+                if isinstance(a_val, (int, float)) and isinstance(b_val, (int, float)):
+                    result.append({
+                        "name": dim_key,
+                        "a_score": float(a_val),
+                        "b_score": float(b_val),
+                    })
+    return result
 
 
 def extract_comparison_reasoning(comparison_data: dict) -> str:
     """提取盲评理由"""
     if not comparison_data:
         return ""
-    for key in ("reasoning", "rationale", "explanation", "summary", "analysis"):
-        if key in comparison_data and isinstance(comparison_data[key], str):
-            return comparison_data[key]
-    return ""
+    return comparison_data.get("reasoning", "")
 
 
-def extract_winner(comparison_data: dict, eval_dir: str) -> str:
+def extract_winner(comparison_data: dict, workspace: str) -> str:
     """提取胜出方，返回 'cn', 'en', 或 'tie'"""
     if not comparison_data:
         return "unknown"
 
-    # 直接有 winner 字段
     winner = comparison_data.get("winner", "")
+    winner_upper = str(winner).upper()
+
+    # winner 是 A/B，需要映射
+    if winner_upper in ("A", "B"):
+        ab_data = read_json(os.path.join(workspace, "ab_assignments.json"))
+        if ab_data:
+            from utils import _parse_ab_assignments
+            ab_map = _parse_ab_assignments(ab_data, comparison_data.get("eval_id"))
+            mapped = ab_map.get(winner_upper, "")
+            if mapped == "cn":
+                return "cn"
+            elif mapped == "en":
+                return "en"
+        # 无法映射，根据分数判断
+        cn_score, en_score = extract_comparison_scores(comparison_data, workspace)
+        if cn_score is not None and en_score is not None:
+            if cn_score > en_score:
+                return "cn"
+            elif en_score > cn_score:
+                return "en"
+            else:
+                return "tie"
+        return "unknown"
+
     winner_lower = str(winner).lower()
-    if "cn" in winner_lower or "chinese" in winner_lower:
-        return "cn"
-    if "en" in winner_lower or "english" in winner_lower:
-        return "en"
     if "tie" in winner_lower or "draw" in winner_lower:
         return "tie"
-
-    # 根据分数判断
-    cn_score, en_score = extract_comparison_scores(comparison_data, eval_dir)
-    if cn_score is not None and en_score is not None:
-        if cn_score > en_score:
-            return "cn"
-        elif en_score > cn_score:
-            return "en"
-        else:
-            return "tie"
 
     return "unknown"
 
 
-def extract_ab_mapping_str(comparison_data: dict, eval_dir: str) -> str:
+def extract_ab_mapping_str(workspace: str, eval_id=None) -> str:
     """获取 A/B 映射的简短描述"""
-    ab_path = os.path.join(eval_dir, "ab_assignments.json")
-    ab_data = read_json(ab_path)
-    if ab_data:
-        parts = []
-        for key in sorted(ab_data.keys()):
-            parts.append(f"{key.upper()}={ab_data[key]}")
-        return ", ".join(parts)
+    ab_data = read_json(os.path.join(workspace, "ab_assignments.json"))
+    if not ab_data:
+        return ""
 
-    if comparison_data:
-        for mkey in ("ab_mapping", "assignments", "mapping"):
-            if mkey in comparison_data and isinstance(comparison_data[mkey], dict):
-                mapping = comparison_data[mkey]
-                parts = []
-                for key in sorted(mapping.keys()):
-                    parts.append(f"{key.upper()}={mapping[key]}")
-                return ", ".join(parts)
+    from utils import _parse_ab_assignments
+    ab_map = _parse_ab_assignments(ab_data, eval_id)
+    if ab_map:
+        parts = []
+        for key in sorted(ab_map.keys()):
+            parts.append(f"{key}={ab_map[key]}")
+        return ", ".join(parts)
     return ""
 
 
 def extract_analysis_data(analysis_data: dict) -> dict:
-    """提取第三层归因分析数据"""
+    """提取第三层归因分析数据（规范格式）"""
     if not analysis_data:
         return {}
 
     result = {}
 
     # 指令遵循度评分
-    for key in ("cn_score", "cn_instruction_score", "winner_score"):
-        if key in analysis_data:
-            result["cn_instruction_score"] = float(analysis_data[key])
-            break
-    for key in ("en_score", "en_instruction_score", "loser_score"):
-        if key in analysis_data:
-            result["en_instruction_score"] = float(analysis_data[key])
-            break
+    inst = analysis_data.get("instruction_following", {})
+    if isinstance(inst, dict):
+        cn_inst = inst.get("cn_skill", {})
+        en_inst = inst.get("en_skill", {})
+        if isinstance(cn_inst, dict) and "score" in cn_inst:
+            result["cn_instruction_score"] = float(cn_inst["score"])
+        if isinstance(en_inst, dict) and "score" in en_inst:
+            result["en_instruction_score"] = float(en_inst["score"])
 
     # 胜出者优势
-    for key in ("winner_strengths", "strengths", "advantages"):
-        if key in analysis_data and isinstance(analysis_data[key], list):
-            result["strengths"] = analysis_data[key]
-            break
+    strengths = analysis_data.get("winner_strengths", [])
+    if isinstance(strengths, list):
+        result["strengths"] = strengths
 
     # 失败方劣势
-    for key in ("loser_weaknesses", "weaknesses", "issues"):
-        if key in analysis_data and isinstance(analysis_data[key], list):
-            result["weaknesses"] = analysis_data[key]
-            break
+    weaknesses = analysis_data.get("loser_weaknesses", [])
+    if isinstance(weaknesses, list):
+        result["weaknesses"] = weaknesses
 
     # 改进建议
-    for key in ("suggestions", "recommendations", "improvements"):
-        if key in analysis_data and isinstance(analysis_data[key], list):
-            result["suggestions"] = analysis_data[key]
-            break
+    suggestions = analysis_data.get("improvement_suggestions", [])
+    if isinstance(suggestions, list):
+        result["suggestions"] = suggestions
 
-    # 核心洞察
-    for key in ("insight", "core_insight", "key_finding", "summary"):
-        if key in analysis_data and isinstance(analysis_data[key], str):
-            result["insight"] = analysis_data[key]
-            break
+    # comparison_summary 作为 insight
+    cs = analysis_data.get("comparison_summary", {})
+    if isinstance(cs, dict):
+        winner = cs.get("overall_winner", "")
+        cn_w = cs.get("cn_wins", 0)
+        en_w = cs.get("en_wins", 0)
+        ties = cs.get("ties", 0)
+        result["insight"] = f"总体胜出: {winner} (CN {cn_w} 胜, EN {en_w} 胜, {ties} 平局)"
+    elif isinstance(cs, str) and cs:
+        result["insight"] = cs
 
     return result
 
@@ -421,19 +276,16 @@ function switchBlind(idx) {
 """
 
 
-def get_eval_label(eval_dir: str, metadata: dict | None) -> str:
+def get_eval_label(eval_id: int, metadata: dict | None) -> str:
     """获取 eval 的显示标签"""
-    dirname = os.path.basename(eval_dir)
-    idx = dirname.replace("eval-", "")
     if metadata:
         prompt = metadata.get("prompt", "") or metadata.get("description", "")
         if prompt:
-            # 截取前 20 个字符作为标签
             short = prompt[:20].strip()
             if len(prompt) > 20:
                 short += "..."
-            return f"Eval {idx}: {short}"
-    return f"Eval {idx}"
+            return f"Eval {eval_id}: {short}"
+    return f"Eval {eval_id}"
 
 
 def generate_overview_tab(eval_data_list: list[dict]) -> str:
@@ -724,9 +576,14 @@ def generate_layer3_tab(eval_data_list: list[dict]) -> str:
     if all_suggestions:
         html += '<div class="card">\n<h3>改进建议</h3>\n'
         for sg in all_suggestions:
-            desc = html_escape(sg.get("description") or sg.get("title") or str(sg))
-            priority = sg.get("priority", "").lower()
-            detail = html_escape(sg.get("detail") or sg.get("explanation") or sg.get("impact") or "")
+            if isinstance(sg, dict):
+                desc = html_escape(sg.get("suggestion") or sg.get("description") or sg.get("title") or str(sg))
+                priority = sg.get("priority", "").lower()
+                detail = html_escape(sg.get("expected_impact") or sg.get("detail") or sg.get("explanation") or "")
+            else:
+                desc = html_escape(str(sg))
+                priority = ""
+                detail = ""
             priority_badge = ""
             if priority == "high":
                 priority_badge = '<span class="priority-high">HIGH</span> '
@@ -753,40 +610,36 @@ def generate_layer3_tab(eval_data_list: list[dict]) -> str:
     return html
 
 
-def generate_report(iteration_dir: str, output_path: str, skill_name: str) -> None:
+def generate_report(workspace: str, output_path: str, skill_name: str) -> None:
     """生成完整的 HTML 评测报告"""
-    if not os.path.isdir(iteration_dir):
-        print(f"错误: 目录不存在 - {iteration_dir}", file=sys.stderr)
+    if not os.path.isdir(workspace):
+        print(f"错误: 目录不存在 - {workspace}", file=sys.stderr)
         sys.exit(1)
 
-    # 查找所有 eval-* 目录
-    eval_dirs = sorted([
-        os.path.join(iteration_dir, d)
-        for d in os.listdir(iteration_dir)
-        if d.startswith("eval-") and os.path.isdir(os.path.join(iteration_dir, d))
-    ])
+    # 发现所有 eval ID
+    eval_ids = discover_eval_ids(workspace)
 
-    if not eval_dirs:
-        print(f"错误: 未找到 eval-* 目录 - {iteration_dir}", file=sys.stderr)
+    if not eval_ids:
+        print(f"错误: 未找到 eval 数据文件 - {workspace}", file=sys.stderr)
         sys.exit(1)
+
+    # 读取 analysis.json (single file, not per-eval)
+    analysis_raw = read_json(os.path.join(workspace, "analysis.json"))
 
     # 收集所有 eval 数据
     eval_data_list = []
-    for eval_dir in eval_dirs:
-        metadata = read_json(os.path.join(eval_dir, "eval_metadata.json"))
-        cn_grading = read_json(os.path.join(eval_dir, "cn_skill", "grading.json"))
-        en_grading = read_json(os.path.join(eval_dir, "en_skill", "grading.json"))
-        comparison = read_json(os.path.join(eval_dir, "comparison.json"))
-        analysis_raw = read_json(os.path.join(eval_dir, "analysis.json"))
+    for eid in eval_ids:
+        cn_grading = read_json(os.path.join(workspace, "cn_skill", f"grading_eval_{eid}.json"))
+        en_grading = read_json(os.path.join(workspace, "en_skill", f"grading_eval_{eid}.json"))
+        comparison = read_json(os.path.join(workspace, f"comparison_eval_{eid}.json"))
 
-        label = get_eval_label(eval_dir, metadata)
-        cn_score, en_score = extract_comparison_scores(comparison, eval_dir)
-        winner = extract_winner(comparison, eval_dir)
+        label = get_eval_label(eid, None)
+        cn_score, en_score = extract_comparison_scores(comparison, workspace)
+        winner = extract_winner(comparison, workspace)
 
         eval_data_list.append({
-            "dir": eval_dir,
+            "eval_id": eid,
             "label": label,
-            "metadata": metadata,
             "cn_grading": cn_grading,
             "en_grading": en_grading,
             "cn_pass_rate": extract_pass_rate(cn_grading),
@@ -800,7 +653,7 @@ def generate_report(iteration_dir: str, output_path: str, skill_name: str) -> No
             "winner": winner,
             "comparison_dimensions": extract_comparison_dimensions(comparison),
             "comparison_reasoning": extract_comparison_reasoning(comparison),
-            "ab_mapping_str": extract_ab_mapping_str(comparison, eval_dir),
+            "ab_mapping_str": extract_ab_mapping_str(workspace, eid),
             "analysis": extract_analysis_data(analysis_raw),
         })
 
@@ -841,7 +694,7 @@ def generate_report(iteration_dir: str, output_path: str, skill_name: str) -> No
         generate_layer3_tab(eval_data_list),
         '</div>\n\n',
         '</div>\n\n',
-        f'<script>\n{generate_js(len(eval_dirs))}\n</script>\n',
+        f'<script>\n{generate_js(len(eval_ids))}\n</script>\n',
         '</body>\n</html>\n',
     ]
 
@@ -858,12 +711,12 @@ def generate_report(iteration_dir: str, output_path: str, skill_name: str) -> No
 
 def main():
     parser = argparse.ArgumentParser(description="生成三层评测报告 HTML")
-    parser.add_argument("iteration_dir", help="iteration 目录路径 (如 /path/to/workspace/iteration-0/)")
+    parser.add_argument("workspace", help="workspace 目录路径 (如 /path/to/workspace/)")
     parser.add_argument("--output", "-o", default="report.html", help="输出 HTML 文件路径 (默认: report.html)")
     parser.add_argument("--skill-name", default="Skill", help="Skill 名称，用于报告标题")
     args = parser.parse_args()
 
-    generate_report(args.iteration_dir, args.output, args.skill_name)
+    generate_report(args.workspace, args.output, args.skill_name)
 
 
 if __name__ == "__main__":

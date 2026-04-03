@@ -107,26 +107,26 @@
   "rubric": {
     "A": {
       "content": {
-        "correctness": "integer — 1-10",
-        "completeness": "integer — 1-10",
-        "accuracy": "integer — 1-10"
+        "correctness": "integer — 1-5",
+        "completeness": "integer — 1-5",
+        "accuracy": "integer — 1-5"
       },
       "structure": {
-        "organization": "integer — 1-10",
-        "formatting": "integer — 1-10",
-        "usability": "integer — 1-10"
+        "organization": "integer — 1-5",
+        "formatting": "integer — 1-5",
+        "usability": "integer — 1-5"
       }
     },
     "B": {
       "content": {
-        "correctness": "integer — 1-10",
-        "completeness": "integer — 1-10",
-        "accuracy": "integer — 1-10"
+        "correctness": "integer — 1-5",
+        "completeness": "integer — 1-5",
+        "accuracy": "integer — 1-5"
       },
       "structure": {
-        "organization": "integer — 1-10",
-        "formatting": "integer — 1-10",
-        "usability": "integer — 1-10"
+        "organization": "integer — 1-5",
+        "formatting": "integer — 1-5",
+        "usability": "integer — 1-5"
       }
     }
   },
@@ -147,26 +147,26 @@
   "rubric": {
     "A": {
       "content": {
-        "correctness": 9,
-        "completeness": 8,
-        "accuracy": 9
+        "correctness": 5,
+        "completeness": 4,
+        "accuracy": 5
       },
       "structure": {
-        "organization": 8,
-        "formatting": 9,
-        "usability": 8
+        "organization": 4,
+        "formatting": 5,
+        "usability": 4
       }
     },
     "B": {
       "content": {
-        "correctness": 8,
-        "completeness": 7,
-        "accuracy": 8
+        "correctness": 4,
+        "completeness": 3,
+        "accuracy": 4
       },
       "structure": {
-        "organization": 7,
-        "formatting": 8,
-        "usability": 7
+        "organization": 3,
+        "formatting": 4,
+        "usability": 3
       }
     }
   },
@@ -188,27 +188,39 @@
 
 ```json
 {
-  "eval_id": "string — 对应 eval_metadata.json 中的 eval_id",
-  "comparison_summary": "string — 对比结果的一段话总结",
+  "comparison_summary": {
+    "overall_winner": "string — 'cn_skill' 或 'en_skill'",
+    "cn_wins": "integer — CN 胜出的 eval 数",
+    "en_wins": "integer — EN 胜出的 eval 数",
+    "ties": "integer — 平局的 eval 数"
+  },
   "instruction_following": {
-    "A": "string — A 对指令的遵循情况描述",
-    "B": "string — B 对指令的遵循情况描述"
+    "cn_skill": {
+      "score": "integer — 指令遵循度评分，1-10",
+      "issues": ["string — 具体遵循问题描述"]
+    },
+    "en_skill": {
+      "score": "integer — 指令遵循度评分，1-10",
+      "issues": ["string — 具体遵循问题描述"]
+    }
   },
   "winner_strengths": [
-    {
-      "aspect": "string — 优势方面",
-      "description": "string — 具体描述"
-    }
+    "string — 胜出者优势描述"
   ],
   "loser_weaknesses": [
     {
-      "aspect": "string — 不足方面",
+      "category": "string — 问题类别，如 instructions / localization / examples",
       "description": "string — 具体描述",
-      "severity": "string — critical / medium / low"
+      "severity": "string — critical / high / medium / low"
     }
   ],
   "improvement_suggestions": [
-    "string — 改进建议条目"
+    {
+      "priority": "string — high / medium / low",
+      "category": "string — 问题类别",
+      "suggestion": "string — 改进建议",
+      "expected_impact": "string — 预期影响"
+    }
   ]
 }
 ```
@@ -217,38 +229,59 @@
 
 ```json
 {
-  "eval_id": "eval_01",
-  "comparison_summary": "英文版在内容完整性和格式规范上整体略优于中文版。中文版在翻译准确性上表现良好，但在部分排版细节上有差异。",
+  "comparison_summary": {
+    "overall_winner": "cn_skill",
+    "cn_wins": 3,
+    "en_wins": 1,
+    "ties": 1
+  },
   "instruction_following": {
-    "A": "严格遵循了所有指令要求，包括章节结构、字数限制和格式规范。",
-    "B": "基本遵循指令，但在页脚格式上使用了纯数字而非'第X页'格式。"
+    "cn_skill": {
+      "score": 8,
+      "issues": [
+        "在 eval_2 中未使用 SKILL.md 指定的模板格式",
+        "输出文件命名不符合指令要求"
+      ]
+    },
+    "en_skill": {
+      "score": 7,
+      "issues": [
+        "在 eval_0 中跳过了验证步骤",
+        "未遵循指令中'始终使用中文标点'的要求",
+        "在 eval_3 中自行添加了指令未要求的额外章节"
+      ]
+    }
   },
   "winner_strengths": [
-    {
-      "aspect": "格式一致性",
-      "description": "所有页面的页眉页脚格式完全统一，表格对齐精确。"
-    },
-    {
-      "aspect": "内容完整性",
-      "description": "包含了所有要求的章节，且每个章节的内容深度符合要求。"
-    }
+    "中文版 SKILL.md 的指令更具体，明确列出了输出结构要求",
+    "中文版包含了针对中文排版的专门指导，减少了格式问题",
+    "翻译后的模板更符合中文用户的阅读习惯"
   ],
   "loser_weaknesses": [
     {
-      "aspect": "页脚格式",
-      "description": "使用纯数字页码而非指定的'第X页'格式。",
-      "severity": "low"
+      "category": "instructions",
+      "description": "原版指令中'format appropriately'过于模糊，导致中文输出的格式不一致",
+      "severity": "high"
     },
     {
-      "aspect": "表格对齐",
-      "description": "第二个数据表格的列宽不均匀，影响可读性。",
+      "category": "localization",
+      "description": "原版缺少中文排版相关指导（标点、段落间距、字体建议）",
       "severity": "medium"
     }
   ],
   "improvement_suggestions": [
-    "统一页脚格式为'第X页'样式",
-    "调整表格列宽使数据对齐更加美观",
-    "检查中文标点符号的使用是否符合 GB/T 15834 标准"
+    {
+      "priority": "high",
+      "category": "instructions",
+      "suggestion": "将'format appropriately'替换为具体的格式规范",
+      "expected_impact": "消除格式模糊性，预计格式相关断言通过率提升 30%"
+    },
+    {
+      "priority": "medium",
+      "category": "localization",
+      "suggestion": "添加中文排版专节：中文标点规范、中英文混排时的空格规则",
+      "expected_impact": "减少语言质量相关的扣分"
+    }
   ]
 }
 ```
