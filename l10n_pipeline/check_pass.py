@@ -11,7 +11,10 @@ import json
 import os
 import sys
 
-from utils import read_json, discover_eval_ids, extract_pass_rate, extract_comparison_scores
+try:
+    from .utils import read_json, discover_eval_ids, extract_pass_rate, extract_comparison_scores
+except ImportError:
+    from utils import read_json, discover_eval_ids, extract_pass_rate, extract_comparison_scores
 
 
 def check_critical_issues(analysis_data: dict) -> list[str]:

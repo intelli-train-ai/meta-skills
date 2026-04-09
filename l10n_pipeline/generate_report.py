@@ -12,7 +12,10 @@ import os
 import sys
 from datetime import date
 
-from utils import read_json, discover_eval_ids, extract_pass_rate, extract_comparison_scores
+try:
+    from .utils import read_json, discover_eval_ids, extract_pass_rate, extract_comparison_scores
+except ImportError:
+    from utils import read_json, discover_eval_ids, extract_pass_rate, extract_comparison_scores
 
 
 def extract_grading_items(grading_data: dict) -> list[dict]:

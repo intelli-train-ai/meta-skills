@@ -1,0 +1,3 @@
+# l10n_pipeline 仅使用 Python 标准库，无需额外安装第三方依赖。
+# 运行时依赖 claude CLI（Claude Code）进行翻译和评测。
+# 如果未来引入第三方库，请在此文件中列出。
